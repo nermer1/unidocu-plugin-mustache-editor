@@ -1,0 +1,7 @@
+/node_modules
+/target
+/out
+/.idea
+/dist/plugin.js
+customize.css
+hs_err_pid*.log

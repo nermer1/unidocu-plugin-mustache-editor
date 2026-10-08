@@ -22,6 +22,11 @@ module.exports = {
                         presets: ['@babel/preset-env']
                     }
                 }
+            },
+            {
+                // CodeMirror CSS 를 런타임에 <style> 로 주입 (plugin.js 단일 파일 자급자족)
+                test: /\.css$/,
+                use: ['style-loader', 'css-loader']
             }
         ]
     },

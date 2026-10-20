@@ -6,49 +6,54 @@
  *  - 대상 셀 클릭 → 모달(좌 미리보기 iframe / 우 소스편집 CodeMirror).
  *  - 열 때 beautify(들여쓰기), 적용 시 minify(한 줄화) → gridObj.$V 로 셀에 되돌림(CRUD='U' 자동).
  *  - 영구 저장은 화면의 기존 [저장] 버튼이 담당(우리는 셀만 갱신 — RFC 직접 쓰기 없음).
- *  - 소스편집기 = CodeMirror 5(htmlmixed + mustache 오버레이 + 줄번호). webpack 번들에 포함(자급자족).
+ *  - 소스편집기 = CodeMirror 5(htmlmixed + mustache 오버레이 + 줄번호). 공용 editorCore 플러그인에서 꺼내 씀.
  */
-import CodeMirror from 'codemirror';
-import 'codemirror/mode/xml/xml';
-import 'codemirror/mode/javascript/javascript';
-import 'codemirror/mode/css/css';
-import 'codemirror/mode/htmlmixed/htmlmixed';
-import 'codemirror/addon/mode/overlay';
-import 'codemirror/lib/codemirror.css';
-import 'codemirror/theme/idea.css';
-
-// htmlmixed 위에 mustache({{...}} / {{{...}}}) 오버레이를 얹은 모드 1회 정의
-CodeMirror.defineMode('htmlmustache', function (cfg) {
-    const mustacheOverlay = {
-        token: function (stream) {
-            if (stream.match('{{')) {
-                stream.eat('{'); // {{{ triple
-                while (!stream.eol()) {
-                    if (stream.match('}}}') || stream.match('}}')) break;
-                    stream.next();
-                }
-                return 'mustache';
-            }
-            while (!stream.eol()) {
-                if (stream.match('{{', false)) break;
-                stream.next();
-            }
-            return null;
-        }
-    };
-    return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'htmlmixed'), mustacheOverlay);
-});
 
 const config = {
     name: 'mustacheEditor',
     targetColumns: ['MUSTACHE'] // 더블클릭 편집 대상 컬럼키 (config.targetColumns 로 오버라이드 가능)
 };
 
+// editorCore 의 CodeMirror (init 에서 채움 — 플러그인 파일 실행 순서는 보장되지 않아 최상단에서 꺼내지 않음)
+let CodeMirror = null;
+
+// htmlmixed 위에 mustache({{...}} / {{{...}}}) 오버레이를 얹은 모드 1회 정의
+const defineMustacheMode = () => {
+    if (CodeMirror.modes.htmlmustache) return;
+    CodeMirror.defineMode('htmlmustache', function (cfg) {
+        const mustacheOverlay = {
+            token: function (stream) {
+                if (stream.match('{{')) {
+                    stream.eat('{'); // {{{ triple
+                    while (!stream.eol()) {
+                        if (stream.match('}}}') || stream.match('}}')) break;
+                        stream.next();
+                    }
+                    return 'mustache';
+                }
+                while (!stream.eol()) {
+                    if (stream.match('{{', false)) break;
+                    stream.next();
+                }
+                return null;
+            }
+        };
+        return CodeMirror.overlayMode(CodeMirror.getMode(cfg, 'htmlmixed'), mustacheOverlay);
+    });
+};
+
 let $plugin;
 
 $u.plugins.addPlugin(config.name, {
     config: config,
+    requires: ['editorCore'], // 어댑터가 자동 로드 + 먼저 init (구버전 어댑터면 config에 editorCore 도 적어야 함)
     init: (pluginHandlers) => {
+        if (!$u.plugins.hasPlugin('editorCore')) {
+            console.error('[mustacheEditor] editorCore 플러그인이 필요합니다. config.js extraPlugins 에 editorCore 를 추가하세요.');
+            return;
+        }
+        CodeMirror = $u.plugins.getPlugin('editorCore').CodeMirror;
+        defineMustacheMode();
         $plugin.hooks(pluginHandlers);
     }
 });
